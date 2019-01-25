@@ -4,10 +4,8 @@ import sys
 
 import raw_zlib
 
-strm = raw_zlib.z_stream()
-strm.zalloc = raw_zlib.Z_NULL
-strm.free = raw_zlib.Z_NULL
-strm.opaque = raw_zlib.Z_NULL
+strm = raw_zlib.z_stream(
+    zalloc=raw_zlib.Z_NULL, free=raw_zlib.Z_NULL, opaque=raw_zlib.Z_NULL)
 rc = raw_zlib.deflateInit(strm, raw_zlib.Z_DEFAULT_COMPRESSION)
 if rc != raw_zlib.Z_OK:
     raise Exception('deflateInit() failed with error {}'.format(rc))

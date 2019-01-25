@@ -1,2 +1,5 @@
 .idea/
 __pycache__
+build/
+dist/
+raw_zlib.egg-info/

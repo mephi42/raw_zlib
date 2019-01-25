@@ -4,12 +4,9 @@ import sys
 
 import raw_zlib
 
-strm = raw_zlib.z_stream()
-strm.next_in = raw_zlib.Z_NULL
-strm.avail_in = 0
-strm.zalloc = raw_zlib.Z_NULL
-strm.free = raw_zlib.Z_NULL
-strm.opaque = raw_zlib.Z_NULL
+strm = raw_zlib.z_stream(
+    next_in=raw_zlib.Z_NULL, avail_in=0,
+    zalloc=raw_zlib.Z_NULL, free=raw_zlib.Z_NULL, opaque=raw_zlib.Z_NULL)
 rc = raw_zlib.inflateInit(strm)
 if rc != raw_zlib.Z_OK:
     raise Exception('inflateInit() failed with error {}'.format(rc))
