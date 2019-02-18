@@ -5,7 +5,7 @@ with open('README.rst') as fp:
 
 setuptools.setup(
     name='raw_zlib',
-    version='0.1.4',
+    version='0.1.5',
     author='mephi42',
     author_email='mephi42@gmail.com',
     description='Thin Python 3 wrapper around zlib',
