@@ -373,7 +373,8 @@ class TestCase(unittest.TestCase):
                     with self.limit_avail_in(strm, chunk_size):
                         err = raw_zlib.deflateParams(
                             strm, level2, raw_zlib.Z_DEFAULT_STRATEGY)
-                        self.assertEqual(raw_zlib.Z_OK, err)
+                        msg = 'deflateParams({} -> {})'.format(level1, level2)
+                        self.assertEqual(raw_zlib.Z_OK, err, msg)
                     with self.limit_avail_in(strm, chunk_size):
                         err = raw_zlib.deflate(
                             strm, raw_zlib.Z_NO_FLUSH)
@@ -391,6 +392,28 @@ class TestCase(unittest.TestCase):
             self.assertEqual(raw_zlib.Z_STREAM_END, err)
             self.assertEqual(0, strm.avail_out)
             self.assertEqual(plain, plain2)
+
+    def test_deflate_reset(self):
+        strm = raw_zlib.z_stream(
+            zalloc=raw_zlib.Z_NULL, free=raw_zlib.Z_NULL,
+            opaque=raw_zlib.Z_NULL)
+        err = raw_zlib.deflateInit(strm, raw_zlib.Z_BEST_SPEED)
+        self.assertEqual(raw_zlib.Z_OK, err)
+        try:
+            for _ in range(2):
+                plain = bytearray(b'AAAA')
+                compressed = bytearray(1024)
+                strm.next_in = self._addressof_bytearray(plain)
+                strm.avail_in = len(plain)
+                strm.next_out = self._addressof_bytearray(compressed)
+                strm.avail_out = len(compressed)
+                err = raw_zlib.deflate(strm, raw_zlib.Z_FINISH)
+                self.assertEqual(raw_zlib.Z_STREAM_END, err)
+                self.assertEqual(b'\x78\x01', compressed[0:2])
+                # deflateReset should preserve the compression level
+                raw_zlib.deflateReset(strm)
+        finally:
+            raw_zlib.deflateEnd(strm)
 
 
 if __name__ == '__main__':
