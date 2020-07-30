@@ -100,20 +100,20 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     @contextlib.contextmanager
-    def _make_deflate_stream(raw=False):
+    def _make_deflate_stream(raw=False, level=raw_zlib.Z_DEFAULT_COMPRESSION):
         strm = raw_zlib.z_stream(
             zalloc=raw_zlib.Z_NULL, free=raw_zlib.Z_NULL,
             opaque=raw_zlib.Z_NULL)
         if raw:
             err = raw_zlib.deflateInit2(
                 strm,
-                level=raw_zlib.Z_DEFAULT_COMPRESSION,
+                level=level,
                 method=raw_zlib.Z_DEFLATED,
                 windowBits=-15,
                 memLevel=8,
                 strategy=raw_zlib.Z_DEFAULT_STRATEGY)
         else:
-            err = raw_zlib.deflateInit(strm, raw_zlib.Z_DEFAULT_COMPRESSION)
+            err = raw_zlib.deflateInit(strm, level)
         if err != raw_zlib.Z_OK:
             raise Exception('deflateInit() failed: error %d' % err)
         try:
@@ -429,13 +429,44 @@ class TestCase(unittest.TestCase):
             strm.next_out = self._addressof_bytearray(dest)
             strm.avail_out = sizeof_zlib_header
             err = raw_zlib.deflate(strm, raw_zlib.Z_PARTIAL_FLUSH)
-            assert err == raw_zlib.Z_OK
-            assert strm.avail_out == 0
+            self.assertEqual(raw_zlib.Z_OK, err)
+            self.assertEqual(0, strm.avail_out)
             strm.avail_out = len(dest) - sizeof_zlib_header
             err = raw_zlib.deflate(strm, raw_zlib.Z_FINISH)
-            assert err == raw_zlib.Z_STREAM_END
+            self.assertEqual(raw_zlib.Z_STREAM_END, err)
             compressed_size = len(dest) - strm.avail_out
         self._check_inflate(dest, compressed_size, plain)
+
+    def test_small_out2(self):
+        plain = bytearray(b'\xff\xff\x60\xff\x00\x7b')
+        dest = bytearray(16)
+        with self._make_deflate_stream(level=raw_zlib.Z_BEST_SPEED) as strm:
+            strm.next_in = self._addressof_bytearray(plain)
+            strm.avail_in = 3
+            strm.next_out = self._addressof_bytearray(dest)
+            strm.avail_out = 1
+            err = raw_zlib.deflate(strm, raw_zlib.Z_PARTIAL_FLUSH)
+            self.assertEqual(raw_zlib.Z_OK, err)
+            consumed_in = 3 - strm.avail_in
+            consumed_out = 1 - strm.avail_out
+
+            strm.avail_in = 3
+            strm.avail_out = 4
+            err = raw_zlib.deflateParams(
+                strm,
+                level=raw_zlib.Z_DEFAULT_COMPRESSION,
+                strategy=raw_zlib.Z_DEFAULT_STRATEGY,
+            )
+            self.assertIn(err, (raw_zlib.Z_OK, raw_zlib.Z_BUF_ERROR))
+            consumed_in += 3 - strm.avail_in
+            consumed_out += 4 - strm.avail_out
+
+            strm.avail_in = len(plain) - consumed_in
+            strm.avail_out = len(dest) - consumed_out
+            err = raw_zlib.deflate(strm, raw_zlib.Z_FINISH)
+            self.assertEqual(raw_zlib.Z_STREAM_END, err)
+            consumed_out = len(dest) - strm.avail_out
+        self._check_inflate(dest, consumed_out, plain)
 
 
 if __name__ == '__main__':
