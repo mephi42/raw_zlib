@@ -100,7 +100,12 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     @contextlib.contextmanager
-    def _make_deflate_stream(raw=False, level=raw_zlib.Z_DEFAULT_COMPRESSION):
+    def _make_deflate_stream(
+            raw=False,
+            level=raw_zlib.Z_DEFAULT_COMPRESSION,
+            mem_level=8,
+            strategy=raw_zlib.Z_DEFAULT_STRATEGY,
+    ):
         strm = raw_zlib.z_stream(
             zalloc=raw_zlib.Z_NULL, free=raw_zlib.Z_NULL,
             opaque=raw_zlib.Z_NULL)
@@ -110,8 +115,9 @@ class TestCase(unittest.TestCase):
                 level=level,
                 method=raw_zlib.Z_DEFLATED,
                 windowBits=-15,
-                memLevel=8,
-                strategy=raw_zlib.Z_DEFAULT_STRATEGY)
+                memLevel=mem_level,
+                strategy=strategy,
+            )
         else:
             err = raw_zlib.deflateInit(strm, level)
         if err != raw_zlib.Z_OK:
@@ -526,7 +532,7 @@ class TestCase(unittest.TestCase):
             self.assertEqual(raw_zlib.Z_STREAM_END, err)
         self._check_inflate(dest, len(dest) - strm.avail_out, plain)
 
-    def test_stored_dictionary(self):
+    def test_set_dictionary2(self):
         plain = bytearray(b'\x2d')
         dest = bytearray(130)
         with self._make_deflate_stream(
@@ -547,6 +553,42 @@ class TestCase(unittest.TestCase):
                 strm,
                 level=raw_zlib.Z_NO_COMPRESSION,
                 strategy=raw_zlib.Z_DEFAULT_STRATEGY,
+            )
+            self.assertEqual(raw_zlib.Z_OK, err)
+
+            err = raw_zlib.deflate(strm, raw_zlib.Z_FINISH)
+            self.assertEqual(raw_zlib.Z_STREAM_END, err)
+        self._check_inflate(
+            dest=dest,
+            compressed_size=len(dest) - strm.avail_out,
+            plain=plain,
+            raw=True,
+            dictionary=dictionary,
+        )
+
+    def test_set_dictionary3(self):
+        plain = bytearray(b'\x00\x00\x00')
+        dest = bytearray(134)
+        with self._make_deflate_stream(
+                raw=True,
+                level=raw_zlib.Z_BEST_SPEED,
+                mem_level=1,
+                strategy=raw_zlib.Z_FIXED,
+        ) as strm:
+            strm.next_in = self._addressof_bytearray(plain)
+            strm.avail_in = len(plain)
+            strm.next_out = self._addressof_bytearray(dest)
+            strm.avail_out = len(dest)
+
+            dictionary = b'\x00\x09'
+            err = raw_zlib.deflateSetDictionary(
+                strm, dictionary, len(dictionary))
+            self.assertEqual(raw_zlib.Z_OK, err)
+
+            err = raw_zlib.deflateParams(
+                strm,
+                level=raw_zlib.Z_DEFAULT_COMPRESSION,
+                strategy=raw_zlib.Z_RLE,
             )
             self.assertEqual(raw_zlib.Z_OK, err)
 
