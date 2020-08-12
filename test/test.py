@@ -798,6 +798,57 @@ class TestCase(unittest.TestCase):
             window_bits=WB_GZIP,
         )
 
+    def test_deflate_params5(self):
+        plain = bytearray(
+            b'\x00\x00\x00\x00\x00\x00\x99\x00\xfe\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\xfe\x00\x00\x00\x00\x99\x00\xfe\x00'
+            b'\x00\x00\x00\x00\x00\x99\x00\xfe\x00\x00\x00\x00\x99\x00\xfe\x00'
+            b'\x00\x00\x99\x00\xfe\x00\x00\x00\x00\x99\x00\xfe\x00\x00\x00\x00'
+            b'\x99\x00\xfe\x00\x00\x00\x00\x00\x00\x99\x00\xfe\x00\x00\x00\x00'
+            b'\x99\x00\xfe\x00'
+        )
+        dest = bytearray(680)
+        with self._make_deflate_stream(
+                window_bits=WB_RAW,
+                level=raw_zlib.Z_BEST_SPEED,
+                mem_level=7,
+                strategy=raw_zlib.Z_FILTERED,
+        ) as strm:
+            strm.next_in = self._addressof_bytearray(plain)
+            strm.avail_in = len(plain)
+            strm.next_out = self._addressof_bytearray(dest)
+            strm.avail_out = len(dest)
+
+            with self._limit_avail_in_out(strm, 3, 5):
+                self._assert_deflate_ok(strm, raw_zlib.Z_PARTIAL_FLUSH)
+
+            with self._limit_avail_in_out(strm, 77, 668):
+                err = raw_zlib.deflateParams(
+                    strm,
+                    level=raw_zlib.Z_DEFAULT_COMPRESSION,
+                    strategy=raw_zlib.Z_FILTERED,
+                )
+                self.assertIn(err, (raw_zlib.Z_OK, raw_zlib.Z_BUF_ERROR))
+
+            with self._limit_avail_in_out(strm, 3, 5):
+                self._assert_deflate_ok(strm, raw_zlib.Z_PARTIAL_FLUSH)
+
+            self._assert_deflate_stream_end(strm)
+
+        plain2 = bytearray(len(plain))
+        with self._make_inflate_stream(window_bits=WB_RAW) as strm:
+            strm.next_in = self._addressof_bytearray(dest)
+            strm.avail_in = len(dest) - strm.avail_out
+            strm.next_out = self._addressof_bytearray(plain2)
+            strm.avail_out = len(plain2)
+            with self._limit_avail_in_out(strm, 32, 83):
+                err = raw_zlib.inflate(strm, raw_zlib.Z_NO_FLUSH)
+                self.assertEqual(raw_zlib.Z_OK, err)
+            err = raw_zlib.inflate(strm, raw_zlib.Z_NO_FLUSH)
+            self.assertEqual(raw_zlib.Z_STREAM_END, err)
+            self.assertEqual(0, strm.avail_out)
+            self.assertEqual(plain, plain2)
+
 
 if __name__ == '__main__':
     unittest.main()
