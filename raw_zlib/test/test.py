@@ -1152,6 +1152,42 @@ class TestCase(unittest.TestCase):
         osizes = reversed(isizes)
         self._test_deflate_inflate(isizes, osizes)
 
+    def _test_inflate_sync_point(self, deflate_flush):
+        plain = bytearray(b'abc')
+        deflated = bytearray(256)
+        inflated = bytearray(len(plain))
+        with self._make_deflate_stream(level=raw_zlib.Z_BEST_SPEED) as dstrm:
+            dstrm.next_in = self._addressof_bytearray(plain)
+            dstrm.avail_in = len(plain)
+            dstrm.next_out = self._addressof_bytearray(deflated)
+            dstrm.avail_out = len(deflated)
+            err = raw_zlib.deflate(dstrm, deflate_flush)
+            self.assertEqual(raw_zlib.Z_OK, err)
+            self.assertEqual(0, dstrm.avail_in)
+            with self._make_inflate_stream() as istrm:
+                istrm.next_in = self._addressof_bytearray(deflated)
+                avail_in = len(deflated) - dstrm.avail_out
+                istrm.avail_in = avail_in - 4
+                self.assertEqual(
+                    b'\x00\x00\xff\xff', deflated[istrm.avail_in:avail_in])
+                istrm.next_out = self._addressof_bytearray(inflated)
+                istrm.avail_out = len(inflated)
+                err = raw_zlib.inflate(istrm, raw_zlib.Z_SYNC_FLUSH)
+                self.assertEqual(raw_zlib.Z_OK, err)
+                self.assertEqual(0, istrm.avail_in)
+                self.assertEqual(0, istrm.avail_out)
+                self.assertEqual(inflated, plain)
+                err = raw_zlib.inflateSyncPoint(istrm)
+                self.assertNotEqual(0, err)
+                err = raw_zlib.deflate(dstrm, raw_zlib.Z_FINISH)
+                self.assertEqual(raw_zlib.Z_STREAM_END, err)
+
+    def test_inflate_sync_point1(self):
+        self._test_inflate_sync_point(raw_zlib.Z_SYNC_FLUSH)
+
+    def test_inflate_sync_point2(self):
+        self._test_inflate_sync_point(raw_zlib.Z_FULL_FLUSH)
+
 
 if __name__ == '__main__':
     unittest.main()
